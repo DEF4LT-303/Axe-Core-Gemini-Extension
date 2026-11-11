@@ -133,25 +133,6 @@ Status: FAIL (3 violations found)
 Here is the prioritized remediation plan and the code diffs to fix them...
 ```
 
----
-
-## Releasing Incremental Updates
-
-Versions are automatically synchronized across `package.json`, `gemini-extension.json`, and the MCP server binary via npm's lifecycle hooks.
-
-When you want to release an update:
-
-```bash
-# 1. Bump version (patch: 1.0.0 -> 1.0.1, minor: 1.1.0, major: 2.0.0)
-# Automatically syncs gemini-extension.json, rebuilds dist/, and commits/tags:
-npm version patch
-
-# 2. Push commits and tags to GitHub:
-git push origin main --tags
-```
-
----
-
 ## Local Development & Contributing
 
 ```bash
@@ -173,7 +154,3 @@ gemini extensions link .
 ```
 
 ---
-
-## License
-
-MIT
