@@ -1,0 +1,46 @@
+{
+  "name": "axe-core-mcp",
+  "version": "1.0.0",
+  "description": "Axe-Core Accessibility Testing MCP Server for Gemini CLI",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "axe-core-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "gemini-extension.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node scripts/build.js",
+    "watch": "tsc --watch",
+    "start": "node dist/index.js",
+    "test": "node scripts/build.js && node test/verify.js && node test/test-mcp.js",
+    "version": "node scripts/sync-version.js && npm run build && git add gemini-extension.json dist/ browsers.json"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "gemini-cli",
+    "axe-core",
+    "accessibility",
+    "a11y",
+    "wcag",
+    "playwright"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@axe-core/playwright": "^4.10.1",
+    "@modelcontextprotocol/sdk": "^1.6.1",
+    "axe-core": "^4.10.2",
+    "playwright": "^1.50.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.7.3"
+  }
+}

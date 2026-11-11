@@ -1,0 +1,13 @@
+{
+  "name": "axe-core",
+  "version": "1.0.0",
+  "description": "Axe-core accessibility testing MCP server for Gemini CLI",
+  "mcpServers": {
+    "axe-core": {
+      "command": "node",
+      "args": ["${extensionPath}/dist/index.js"],
+      "cwd": "${extensionPath}",
+      "description": "Axe-core automated WCAG accessibility auditing"
+    }
+  }
+}
