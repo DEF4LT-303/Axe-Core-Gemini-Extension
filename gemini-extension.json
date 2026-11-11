@@ -5,7 +5,9 @@
   "mcpServers": {
     "axe-core": {
       "command": "node",
-      "args": ["${extensionPath}/dist/index.js"],
+      "args": [
+        "${extensionPath}/dist/index.js"
+      ],
       "cwd": "${extensionPath}",
       "description": "Axe-core automated WCAG accessibility auditing"
     }
