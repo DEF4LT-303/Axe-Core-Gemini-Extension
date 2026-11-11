@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext, type Page, type LaunchOptions } from 'playwright';
+import { chromium, type Browser, type BrowserContext, type Page, type LaunchOptions, type BrowserContextOptions } from 'playwright';
 
 let cachedBrowser: Browser | null = null;
 
@@ -6,6 +6,24 @@ export interface BrowserOptions {
   headless?: boolean;
   channel?: 'chrome' | 'msedge';
   executablePath?: string;
+}
+
+export interface CookieParam {
+  name: string;
+  value: string;
+  url?: string;
+  domain?: string;
+  path?: string;
+  httpOnly?: boolean;
+  secure?: boolean;
+  sameSite?: 'Strict' | 'Lax' | 'None';
+}
+
+export interface AuditPageOptions {
+  viewport?: { width: number; height: number };
+  headers?: Record<string, string>;
+  cookies?: CookieParam[];
+  storageState?: string;
 }
 
 /**
@@ -72,17 +90,41 @@ export async function getBrowser(options?: BrowserOptions): Promise<Browser> {
 
 /**
  * Creates a fresh, isolated BrowserContext and Page for an audit.
+ * Supports authentication via extraHTTPHeaders, cookies, and storageState.
  */
-export async function createAuditPage(viewport?: { width: number; height: number }): Promise<{
+export async function createAuditPage(options?: AuditPageOptions): Promise<{
   context: BrowserContext;
   page: Page;
 }> {
   const browser = await getBrowser();
-  const context = await browser.newContext({
-    viewport: viewport ?? { width: 1280, height: 800 },
+  const contextOptions: BrowserContextOptions = {
+    viewport: options?.viewport ?? { width: 1280, height: 800 },
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 AxeCoreMCP/1.0',
     deviceScaleFactor: 1
-  });
+  };
+
+  if (options?.headers && Object.keys(options.headers).length > 0) {
+    contextOptions.extraHTTPHeaders = options.headers;
+  }
+
+  if (options?.storageState) {
+    const trimmed = options.storageState.trim();
+    if (trimmed.startsWith('{')) {
+      try {
+        contextOptions.storageState = JSON.parse(trimmed);
+      } catch {
+        contextOptions.storageState = options.storageState;
+      }
+    } else {
+      contextOptions.storageState = options.storageState;
+    }
+  }
+
+  const context = await browser.newContext(contextOptions);
+
+  if (options?.cookies && options.cookies.length > 0) {
+    await context.addCookies(options.cookies);
+  }
 
   const page = await context.newPage();
   page.setDefaultTimeout(30000);

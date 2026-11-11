@@ -51,9 +51,14 @@ Audits a live web page or local development server using axe-core in a headless 
 - `viewport` *(object, optional)*: `{ width: number, height: number }` for responsive/mobile testing.
 - `waitForSelector` *(string, optional)*: CSS selector to wait for before scanning (ideal for SPAs).
 - `detailed` *(boolean, optional)*: Return all failing nodes (default limits to 5 per rule for token efficiency).
+- `headers` *(object, optional)*: Custom HTTP headers for authenticated endpoints (e.g., `{"Authorization": "Bearer <token>"}`).
+- `cookies` *(array, optional)*: Cookies for session-based auth (e.g., `[{"name": "session_id", "value": "xyz123"}]`).
+- `storageState` *(string, optional)*: Path to a Playwright `storageState.json` file (or JSON string) for logged-in sessions.
 
-**Example Prompt:**
+**Example Prompts:**
 > *"Run an accessibility audit on http://localhost:5173 for WCAG 2.1 AA and list critical violations."*
+>
+> *"Audit http://localhost:3000/dashboard with cookie `session_id=xyz123`."*
 
 ---
 

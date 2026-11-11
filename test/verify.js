@@ -36,6 +36,17 @@ async function test() {
   console.log(`URL Audit Status: ${urlReport.status}`);
   console.log(`URL Violations detected: ${urlReport.summary.violations}`);
 
+  console.log('\n--- Testing auditUrl with headers and cookies ---');
+  const authReport = await auditUrl(
+    'data:text/html,<html lang="en"><head><title>Auth Page</title></head><body><main><h1>Auth OK</h1></main></body></html>',
+    {
+      headers: { 'Authorization': 'Bearer test-token-123' },
+      cookies: [{ name: 'session_id', value: 'secret-xyz' }]
+    }
+  );
+  console.log(`Auth URL Audit Status: ${authReport.status}`);
+  console.log(`Auth URL Violations: ${authReport.summary.violations}`);
+
   await closeBrowser();
   console.log('\nVerification completed successfully!');
 }

@@ -1,6 +1,6 @@
 import axe, { type RuleMetadata } from 'axe-core';
 import { AxeBuilder } from '@axe-core/playwright';
-import { createAuditPage } from './browser.js';
+import { createAuditPage, type CookieParam } from './browser.js';
 
 export interface AuditOptions {
   tags?: string[];
@@ -12,6 +12,9 @@ export interface AuditOptions {
   viewport?: { width: number; height: number };
   waitForSelector?: string;
   detailed?: boolean;
+  headers?: Record<string, string>;
+  cookies?: CookieParam[];
+  storageState?: string;
 }
 
 export interface NodeSummary {
@@ -123,7 +126,20 @@ function configureAxeBuilder(builder: AxeBuilder, options?: AuditOptions): AxeBu
  * Audits a live URL using Playwright and @axe-core/playwright.
  */
 export async function auditUrl(url: string, options?: AuditOptions): Promise<AuditReport> {
-  const { context, page } = await createAuditPage(options?.viewport);
+  const preparedCookies = options?.cookies?.map((c) => {
+    // If neither domain nor url is provided, default to target URL so Playwright doesn't reject it
+    if (!c.domain && !c.url) {
+      return { ...c, url };
+    }
+    return c;
+  });
+
+  const { context, page } = await createAuditPage({
+    viewport: options?.viewport,
+    headers: options?.headers,
+    cookies: preparedCookies,
+    storageState: options?.storageState
+  });
 
   try {
     await page.goto(url, { waitUntil: 'load', timeout: 30000 });
@@ -174,7 +190,7 @@ export async function auditUrl(url: string, options?: AuditOptions): Promise<Aud
  * This guarantees accurate layout, CSS computation, and color contrast.
  */
 export async function auditHtml(html: string, options?: AuditOptions): Promise<AuditReport> {
-  const { context, page } = await createAuditPage(options?.viewport);
+  const { context, page } = await createAuditPage({ viewport: options?.viewport });
 
   try {
     // If not a full HTML document, wrap in minimal HTML shell with doctype and UTF-8

@@ -230776,13 +230776,32 @@ Attempted the following strategies:
 Remediation: Install Google Chrome, Microsoft Edge, or run "npx playwright install chromium".`
   );
 }
-async function createAuditPage(viewport) {
+async function createAuditPage(options2) {
   const browser = await getBrowser();
-  const context = await browser.newContext({
-    viewport: viewport ?? { width: 1280, height: 800 },
+  const contextOptions = {
+    viewport: options2?.viewport ?? { width: 1280, height: 800 },
     userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 AxeCoreMCP/1.0",
     deviceScaleFactor: 1
-  });
+  };
+  if (options2?.headers && Object.keys(options2.headers).length > 0) {
+    contextOptions.extraHTTPHeaders = options2.headers;
+  }
+  if (options2?.storageState) {
+    const trimmed = options2.storageState.trim();
+    if (trimmed.startsWith("{")) {
+      try {
+        contextOptions.storageState = JSON.parse(trimmed);
+      } catch {
+        contextOptions.storageState = options2.storageState;
+      }
+    } else {
+      contextOptions.storageState = options2.storageState;
+    }
+  }
+  const context = await browser.newContext(contextOptions);
+  if (options2?.cookies && options2.cookies.length > 0) {
+    await context.addCookies(options2.cookies);
+  }
   const page = await context.newPage();
   page.setDefaultTimeout(3e4);
   page.setDefaultNavigationTimeout(3e4);
@@ -230861,7 +230880,18 @@ function configureAxeBuilder(builder, options2) {
   return builder;
 }
 async function auditUrl(url, options2) {
-  const { context, page } = await createAuditPage(options2?.viewport);
+  const preparedCookies = options2?.cookies?.map((c) => {
+    if (!c.domain && !c.url) {
+      return { ...c, url };
+    }
+    return c;
+  });
+  const { context, page } = await createAuditPage({
+    viewport: options2?.viewport,
+    headers: options2?.headers,
+    cookies: preparedCookies,
+    storageState: options2?.storageState
+  });
   try {
     await page.goto(url, { waitUntil: "load", timeout: 3e4 });
     if (options2?.waitForSelector) {
@@ -230898,7 +230928,7 @@ async function auditUrl(url, options2) {
   }
 }
 async function auditHtml(html, options2) {
-  const { context, page } = await createAuditPage(options2?.viewport);
+  const { context, page } = await createAuditPage({ viewport: options2?.viewport });
   try {
     let completeHtml = html.trim();
     if (!completeHtml.toLowerCase().includes("<html")) {
@@ -230983,9 +231013,40 @@ server2.tool(
     waitForSelector: external_exports.string().optional().describe("CSS selector to wait for before running the audit (useful for SPAs)"),
     detailed: external_exports.boolean().optional().describe(
       "Whether to return all failing element nodes (default false limits to first 5 nodes per rule for token efficiency)"
+    ),
+    headers: external_exports.record(external_exports.string()).optional().describe(
+      "Custom HTTP request headers for authenticated endpoints (e.g. {'Authorization': 'Bearer <token>', 'X-API-Key': '...'})"
+    ),
+    cookies: external_exports.array(
+      external_exports.object({
+        name: external_exports.string().describe("Cookie name"),
+        value: external_exports.string().describe("Cookie value"),
+        domain: external_exports.string().optional().describe("Cookie domain"),
+        path: external_exports.string().optional().describe("Cookie path"),
+        url: external_exports.string().optional().describe("Cookie URL")
+      })
+    ).optional().describe(
+      "Cookies to attach for session-based authentication (e.g. [{ name: 'session_id', value: 'xyz123' }])"
+    ),
+    storageState: external_exports.string().optional().describe(
+      "Path to a Playwright storageState JSON file (or raw JSON string) containing saved cookies and localStorage"
     )
   },
-  async ({ url, tags, rules, disableRules, include, exclude, impact, viewport, waitForSelector, detailed }) => {
+  async ({
+    url,
+    tags,
+    rules,
+    disableRules,
+    include,
+    exclude,
+    impact,
+    viewport,
+    waitForSelector,
+    detailed,
+    headers,
+    cookies,
+    storageState: storageState2
+  }) => {
     try {
       const report = await auditUrl(url, {
         tags,
@@ -230996,7 +231057,10 @@ server2.tool(
         impact,
         viewport,
         waitForSelector,
-        detailed
+        detailed,
+        headers,
+        cookies,
+        storageState: storageState2
       });
       return {
         content: [

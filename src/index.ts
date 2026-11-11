@@ -62,9 +62,49 @@ server.tool(
       .optional()
       .describe(
         'Whether to return all failing element nodes (default false limits to first 5 nodes per rule for token efficiency)'
+      ),
+    headers: z
+      .record(z.string())
+      .optional()
+      .describe(
+        "Custom HTTP request headers for authenticated endpoints (e.g. {'Authorization': 'Bearer <token>', 'X-API-Key': '...'})"
+      ),
+    cookies: z
+      .array(
+        z.object({
+          name: z.string().describe('Cookie name'),
+          value: z.string().describe('Cookie value'),
+          domain: z.string().optional().describe('Cookie domain'),
+          path: z.string().optional().describe('Cookie path'),
+          url: z.string().optional().describe('Cookie URL')
+        })
+      )
+      .optional()
+      .describe(
+        "Cookies to attach for session-based authentication (e.g. [{ name: 'session_id', value: 'xyz123' }])"
+      ),
+    storageState: z
+      .string()
+      .optional()
+      .describe(
+        'Path to a Playwright storageState JSON file (or raw JSON string) containing saved cookies and localStorage'
       )
   },
-  async ({ url, tags, rules, disableRules, include, exclude, impact, viewport, waitForSelector, detailed }) => {
+  async ({
+    url,
+    tags,
+    rules,
+    disableRules,
+    include,
+    exclude,
+    impact,
+    viewport,
+    waitForSelector,
+    detailed,
+    headers,
+    cookies,
+    storageState
+  }) => {
     try {
       const report = await auditUrl(url, {
         tags,
@@ -75,7 +115,10 @@ server.tool(
         impact,
         viewport,
         waitForSelector,
-        detailed
+        detailed,
+        headers,
+        cookies,
+        storageState
       });
 
       return {
