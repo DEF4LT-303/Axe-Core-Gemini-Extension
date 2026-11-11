@@ -33,6 +33,26 @@ gemini extensions update axe-core
 
 ---
 
+## Slash Commands
+
+Gemini CLI automatically enables these dedicated slash commands when the extension is installed:
+
+| Command | Syntax | Description |
+| :--- | :--- | :--- |
+| **`/a11y`** | `/a11y <url or html>` | Fast accessibility check on any URL, local file, or HTML snippet |
+| **`/a11y:audit`** | `/a11y:audit <url>` | Full WCAG 2.1 AA audit on a live URL with prioritized fixes |
+| **`/a11y:rule`** | `/a11y:rule <rule-id>` | Look up an axe-core rule with before/after code examples |
+
+**Examples:**
+```text
+/a11y http://localhost:3000
+/a11y <button style="color: #999; background: #aaa;">Click</button>
+/a11y:audit https://example.com
+/a11y:rule color-contrast
+```
+
+---
+
 ## Available Tools
 
 Once installed, Gemini CLI automatically discovers these tools:

@@ -230833,6 +230833,32 @@ process.on("SIGTERM", async () => {
 });
 
 // src/axe.ts
+function generateSummaryTable(status, summary, violations, target) {
+  const statusDisplay = status === "PASS" ? "PASS (Compliant)" : "FAIL (Violations Found)";
+  const { byImpact, violations: totalViolations, passes } = summary;
+  const headerTable = [
+    `| Target | Status | Critical | Serious | Moderate | Minor | Total Violations | Passed Rules |`,
+    `| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |`,
+    `| ${target} | **${statusDisplay}** | ${byImpact.critical} | ${byImpact.serious} | ${byImpact.moderate} | ${byImpact.minor} | ${totalViolations} | ${passes} |`
+  ].join("\n");
+  if (totalViolations === 0) {
+    return headerTable;
+  }
+  const rows = violations.map((v) => {
+    const targets = v.elements.map((e) => `\`${e.target}\``).slice(0, 3).join(", ") || "-";
+    const cleanHelp = v.help.replace(/\|/g, "-");
+    return `| \`${v.id}\` | **${v.impact.toUpperCase()}** | ${v.elementCount} | ${targets} | ${cleanHelp} |`;
+  });
+  const breakdownTable = [
+    `### Violations Breakdown`,
+    `| Rule ID | Severity | Elements | Target Selectors | Description |`,
+    `| :--- | :---: | :---: | :--- | :--- |`,
+    ...rows
+  ].join("\n");
+  return `${headerTable}
+
+${breakdownTable}`;
+}
 function formatViolations(violations, impactFilter, detailed = false) {
   let filtered = violations;
   if (impactFilter && impactFilter.length > 0) {
@@ -230908,18 +230934,22 @@ async function auditUrl(url, options2) {
       minor: results.violations.filter((v) => v.impact === "minor").length
     };
     const auditedTags = options2?.tags && options2.tags.length > 0 ? options2.tags : ["wcag2a", "wcag2aa", "wcag21aa"];
+    const status = formattedViolations.length === 0 ? "PASS" : "FAIL";
+    const summary = {
+      violations: results.violations.length,
+      passes: results.passes.length,
+      incomplete: results.incomplete.length,
+      inapplicable: results.inapplicable.length,
+      byImpact
+    };
+    const summaryTable = generateSummaryTable(status, summary, formattedViolations, url);
     return {
       target: url,
       timestamp: results.timestamp,
       wcagTagsAudited: auditedTags,
-      status: formattedViolations.length === 0 ? "PASS" : "FAIL",
-      summary: {
-        violations: results.violations.length,
-        passes: results.passes.length,
-        incomplete: results.incomplete.length,
-        inapplicable: results.inapplicable.length,
-        byImpact
-      },
+      status,
+      summary,
+      summaryTable,
       violations: formattedViolations
     };
   } finally {
@@ -230956,18 +230986,22 @@ async function auditHtml(html, options2) {
       minor: results.violations.filter((v) => v.impact === "minor").length
     };
     const auditedTags = options2?.tags && options2.tags.length > 0 ? options2.tags : ["wcag2a", "wcag2aa", "wcag21aa"];
+    const status = formattedViolations.length === 0 ? "PASS" : "FAIL";
+    const summary = {
+      violations: results.violations.length,
+      passes: results.passes.length,
+      incomplete: results.incomplete.length,
+      inapplicable: results.inapplicable.length,
+      byImpact
+    };
+    const summaryTable = generateSummaryTable(status, summary, formattedViolations, "HTML snippet");
     return {
       target: "HTML snippet",
       timestamp: results.timestamp,
       wcagTagsAudited: auditedTags,
-      status: formattedViolations.length === 0 ? "PASS" : "FAIL",
-      summary: {
-        violations: results.violations.length,
-        passes: results.passes.length,
-        incomplete: results.incomplete.length,
-        inapplicable: results.inapplicable.length,
-        byImpact
-      },
+      status,
+      summary,
+      summaryTable,
       violations: formattedViolations
     };
   } finally {
@@ -231205,9 +231239,9 @@ server2.prompt(
             text: `Please review the following axe-core accessibility audit report for "${target}".
 
 Provide:
-1. Executive Compliance Summary (WCAG Level AA status, total violations by severity: Critical, Serious, Moderate, Minor).
-2. Prioritized Remediation Plan: Group the violations from most critical to least critical. For each violation, explain the barrier to users with disabilities, the exact offending element(s), and the code fix.
-3. Code Diffs/Snippets: Provide clean, corrected HTML/CSS snippets for the top issues.
+1. Executive Compliance Summary Table: A clean Markdown table with Target, WCAG Status, Critical, Serious, Moderate, Minor, and Total Violations.
+2. Violations Breakdown Table: A Markdown table with Rule ID, Severity, Element Count, Target Selector(s), and Short Description.
+3. Prioritized Remediation Plan & Code Diffs: Group the violations from most critical to least critical. For each violation, explain the user barrier, offending code, and provide clean, corrected HTML/CSS snippets.
 
 Audit Data:
 \`\`\`json

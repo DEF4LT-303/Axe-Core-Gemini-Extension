@@ -51,7 +51,46 @@ export interface AuditReport {
       minor: number;
     };
   };
+  summaryTable: string;
   violations: ViolationSummary[];
+}
+
+/**
+ * Generates a clean Markdown table summarizing the audit results.
+ */
+export function generateSummaryTable(
+  status: 'PASS' | 'FAIL',
+  summary: AuditReport['summary'],
+  violations: ViolationSummary[],
+  target: string
+): string {
+  const statusDisplay = status === 'PASS' ? 'PASS (Compliant)' : 'FAIL (Violations Found)';
+  const { byImpact, violations: totalViolations, passes } = summary;
+
+  const headerTable = [
+    `| Target | Status | Critical | Serious | Moderate | Minor | Total Violations | Passed Rules |`,
+    `| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |`,
+    `| ${target} | **${statusDisplay}** | ${byImpact.critical} | ${byImpact.serious} | ${byImpact.moderate} | ${byImpact.minor} | ${totalViolations} | ${passes} |`
+  ].join('\n');
+
+  if (totalViolations === 0) {
+    return headerTable;
+  }
+
+  const rows = violations.map((v) => {
+    const targets = v.elements.map((e) => `\`${e.target}\``).slice(0, 3).join(', ') || '-';
+    const cleanHelp = v.help.replace(/\|/g, '-');
+    return `| \`${v.id}\` | **${v.impact.toUpperCase()}** | ${v.elementCount} | ${targets} | ${cleanHelp} |`;
+  });
+
+  const breakdownTable = [
+    `### Violations Breakdown`,
+    `| Rule ID | Severity | Elements | Target Selectors | Description |`,
+    `| :--- | :---: | :---: | :--- | :--- |`,
+    ...rows
+  ].join('\n');
+
+  return `${headerTable}\n\n${breakdownTable}`;
 }
 
 /**
@@ -166,18 +205,24 @@ export async function auditUrl(url: string, options?: AuditOptions): Promise<Aud
       ? options.tags
       : ['wcag2a', 'wcag2aa', 'wcag21aa'];
 
+    const status: 'PASS' | 'FAIL' = formattedViolations.length === 0 ? 'PASS' : 'FAIL';
+    const summary = {
+      violations: results.violations.length,
+      passes: results.passes.length,
+      incomplete: results.incomplete.length,
+      inapplicable: results.inapplicable.length,
+      byImpact
+    };
+
+    const summaryTable = generateSummaryTable(status, summary, formattedViolations, url);
+
     return {
       target: url,
       timestamp: results.timestamp,
       wcagTagsAudited: auditedTags,
-      status: formattedViolations.length === 0 ? 'PASS' : 'FAIL',
-      summary: {
-        violations: results.violations.length,
-        passes: results.passes.length,
-        incomplete: results.incomplete.length,
-        inapplicable: results.inapplicable.length,
-        byImpact
-      },
+      status,
+      summary,
+      summaryTable,
       violations: formattedViolations
     };
   } finally {
@@ -228,18 +273,24 @@ export async function auditHtml(html: string, options?: AuditOptions): Promise<A
       ? options.tags
       : ['wcag2a', 'wcag2aa', 'wcag21aa'];
 
+    const status: 'PASS' | 'FAIL' = formattedViolations.length === 0 ? 'PASS' : 'FAIL';
+    const summary = {
+      violations: results.violations.length,
+      passes: results.passes.length,
+      incomplete: results.incomplete.length,
+      inapplicable: results.inapplicable.length,
+      byImpact
+    };
+
+    const summaryTable = generateSummaryTable(status, summary, formattedViolations, 'HTML snippet');
+
     return {
       target: 'HTML snippet',
       timestamp: results.timestamp,
       wcagTagsAudited: auditedTags,
-      status: formattedViolations.length === 0 ? 'PASS' : 'FAIL',
-      summary: {
-        violations: results.violations.length,
-        passes: results.passes.length,
-        incomplete: results.incomplete.length,
-        inapplicable: results.inapplicable.length,
-        byImpact
-      },
+      status,
+      summary,
+      summaryTable,
       violations: formattedViolations
     };
   } finally {

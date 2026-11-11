@@ -1,0 +1,15 @@
+description = "Explain an axe-core rule and provide best-practice remediation code examples"
+
+prompt = """
+You are an expert accessibility consultant.
+
+1. Call the `get_rule_info` tool with ruleId="{{args}}" to fetch the official axe-core rule definition and WCAG criteria.
+2. Provide a clear developer guide:
+   - What accessibility requirement does "{{args}}" check?
+   - Which WCAG success criteria and Section 508 guidelines does it map to?
+   - How does failing this rule impact real users?
+3. Code Examples:
+   - Inaccessible Example: Show common code patterns that fail this rule.
+   - Accessible Example: Show the corrected, fully compliant implementation.
+   - Best Practices: Mention any common traps or edge cases developers should watch out for.
+"""

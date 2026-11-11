@@ -1,0 +1,16 @@
+description = "Run a comprehensive WCAG 2.1 AA accessibility audit on a live URL with prioritized remediation"
+
+prompt = """
+You are a senior accessibility engineer. Run an in-depth WCAG 2.1 Level AA accessibility audit for: {{args}}.
+
+Workflow:
+1. Call the `audit_url` tool on "{{args}}" with standard tags ["wcag2a", "wcag2aa", "wcag21aa"].
+2. Always output the results in clean Markdown tables:
+   - Executive Summary Table: Include columns for Target, Status (PASS/FAIL), Critical, Serious, Moderate, Minor, Total Violations, and Passed Rules.
+   - Violations Breakdown Table: Include columns for Rule ID, Severity, Count, Target Selectors, and Description.
+3. For each violation:
+   - Explain the specific barrier experienced by users with disabilities (screen reader users, keyboard-only navigators, low-vision users).
+   - Show the offending CSS selector and HTML snippet.
+   - Provide the exact corrected code snippet to remediate the issue.
+4. Conclude with an overall accessibility health score and compliance verdict.
+"""

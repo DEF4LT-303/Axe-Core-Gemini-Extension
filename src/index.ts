@@ -295,9 +295,9 @@ server.prompt(
             text: `Please review the following axe-core accessibility audit report for "${target}".
 
 Provide:
-1. Executive Compliance Summary (WCAG Level AA status, total violations by severity: Critical, Serious, Moderate, Minor).
-2. Prioritized Remediation Plan: Group the violations from most critical to least critical. For each violation, explain the barrier to users with disabilities, the exact offending element(s), and the code fix.
-3. Code Diffs/Snippets: Provide clean, corrected HTML/CSS snippets for the top issues.
+1. Executive Compliance Summary Table: A clean Markdown table with Target, WCAG Status, Critical, Serious, Moderate, Minor, and Total Violations.
+2. Violations Breakdown Table: A Markdown table with Rule ID, Severity, Element Count, Target Selector(s), and Short Description.
+3. Prioritized Remediation Plan & Code Diffs: Group the violations from most critical to least critical. For each violation, explain the user barrier, offending code, and provide clean, corrected HTML/CSS snippets.
 
 Audit Data:
 \`\`\`json
