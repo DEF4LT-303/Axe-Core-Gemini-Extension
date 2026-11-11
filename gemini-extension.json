@@ -1,6 +1,6 @@
 {
   "name": "axe-core",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Axe-core accessibility testing MCP server for Gemini CLI",
   "mcpServers": {
     "axe-core": {
