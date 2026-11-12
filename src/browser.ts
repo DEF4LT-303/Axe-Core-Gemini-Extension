@@ -134,6 +134,40 @@ export async function createAuditPage(options?: AuditPageOptions): Promise<{
 }
 
 /**
+ * Connects to an existing Chromium/Chrome/Edge instance via Chrome DevTools Protocol (CDP).
+ * Enables auditing live open tabs, active modals, and authenticated sessions without re-navigating.
+ */
+export async function connectCDPPage(
+  cdpUrl: string,
+  targetUrl?: string
+): Promise<{
+  browser: Browser;
+  context: BrowserContext;
+  page: Page;
+}> {
+  const browser = await chromium.connectOverCDP(cdpUrl);
+  const contexts = browser.contexts();
+  const context = contexts[0] ?? (await browser.newContext());
+  const pages = context.pages();
+
+  let targetPage: Page | null = null;
+  if (targetUrl && targetUrl !== 'current') {
+    targetPage = pages.find((p) => p.url().includes(targetUrl)) ?? null;
+  }
+
+  // If not found by specific URL, use the latest/active tab
+  if (!targetPage && pages.length > 0) {
+    targetPage = pages[pages.length - 1];
+  }
+
+  if (!targetPage) {
+    targetPage = await context.newPage();
+  }
+
+  return { browser, context, page: targetPage };
+}
+
+/**
  * Closes the cached browser instance if open.
  */
 export async function closeBrowser(): Promise<void> {

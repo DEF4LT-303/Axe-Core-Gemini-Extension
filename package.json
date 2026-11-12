@@ -12,6 +12,7 @@
     "dist",
     "gemini-extension.json",
     "README.md",
+    "GEMINI.md",
     "commands"
   ],
   "scripts": {

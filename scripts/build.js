@@ -1,9 +1,13 @@
 import * as esbuild from 'esbuild';
+import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
 async function build() {
   const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+  console.log(`Compiling TypeScript type definitions for v${pkg.version}...`);
+  execSync('npx tsc', { stdio: 'inherit' });
+
   console.log(`Building standalone bundle for v${pkg.version} with esbuild...`);
 
   await esbuild.build({

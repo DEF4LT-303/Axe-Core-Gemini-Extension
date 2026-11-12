@@ -230807,6 +230807,23 @@ async function createAuditPage(options2) {
   page.setDefaultNavigationTimeout(3e4);
   return { context, page };
 }
+async function connectCDPPage(cdpUrl, targetUrl) {
+  const browser = await chromium.connectOverCDP(cdpUrl);
+  const contexts = browser.contexts();
+  const context = contexts[0] ?? await browser.newContext();
+  const pages = context.pages();
+  let targetPage = null;
+  if (targetUrl && targetUrl !== "current") {
+    targetPage = pages.find((p) => p.url().includes(targetUrl)) ?? null;
+  }
+  if (!targetPage && pages.length > 0) {
+    targetPage = pages[pages.length - 1];
+  }
+  if (!targetPage) {
+    targetPage = await context.newPage();
+  }
+  return { browser, context, page: targetPage };
+}
 async function closeBrowser() {
   if (cachedBrowser) {
     try {
@@ -230833,31 +230850,111 @@ process.on("SIGTERM", async () => {
 });
 
 // src/axe.ts
-function generateSummaryTable(status, summary, violations, target) {
-  const statusDisplay = status === "PASS" ? "PASS (Compliant)" : "FAIL (Violations Found)";
-  const { byImpact, violations: totalViolations, passes } = summary;
-  const headerTable = [
-    `| Target | Status | Critical | Serious | Moderate | Minor | Total Violations | Passed Rules |`,
-    `| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |`,
-    `| ${target} | **${statusDisplay}** | ${byImpact.critical} | ${byImpact.serious} | ${byImpact.moderate} | ${byImpact.minor} | ${totalViolations} | ${passes} |`
-  ].join("\n");
-  if (totalViolations === 0) {
-    return headerTable;
+async function attachBoundingBoxes(page, ruleResults) {
+  const targets = [];
+  for (const r of ruleResults) {
+    if (!r.nodes) continue;
+    for (const node of r.nodes) {
+      const sel = Array.isArray(node.target) ? node.target[0] : String(node.target);
+      if (sel && typeof sel === "string") targets.push(sel);
+    }
   }
-  const rows = violations.map((v) => {
-    const targets = v.elements.map((e) => `\`${e.target}\``).slice(0, 3).join(", ") || "-";
-    const cleanHelp = v.help.replace(/\|/g, "-");
-    return `| \`${v.id}\` | **${v.impact.toUpperCase()}** | ${v.elementCount} | ${targets} | ${cleanHelp} |`;
-  });
-  const breakdownTable = [
-    `### Violations Breakdown`,
-    `| Rule ID | Severity | Elements | Target Selectors | Description |`,
-    `| :--- | :---: | :---: | :--- | :--- |`,
-    ...rows
+  if (targets.length === 0) return;
+  try {
+    const rects = await page.evaluate((selectorList) => {
+      const map = {};
+      for (const sel of selectorList) {
+        if (map[sel] !== void 0) continue;
+        try {
+          const el = document.querySelector(sel);
+          if (el) {
+            const r = el.getBoundingClientRect();
+            map[sel] = {
+              x: Math.round(r.x),
+              y: Math.round(r.y),
+              width: Math.round(r.width),
+              height: Math.round(r.height)
+            };
+          } else {
+            map[sel] = null;
+          }
+        } catch {
+          map[sel] = null;
+        }
+      }
+      return map;
+    }, targets);
+    for (const r of ruleResults) {
+      if (!r.nodes) continue;
+      for (const node of r.nodes) {
+        const sel = Array.isArray(node.target) ? node.target[0] : String(node.target);
+        if (sel && rects[sel]) {
+          node.rect = rects[sel];
+        }
+      }
+    }
+  } catch {
+  }
+}
+async function applyEmulation(page, options2) {
+  if (options2?.emulateMedia) {
+    await page.emulateMedia({
+      reducedMotion: options2.emulateMedia.reducedMotion,
+      forcedColors: options2.emulateMedia.forcedColors,
+      colorScheme: options2.emulateMedia.colorScheme
+    });
+  }
+  if (options2?.visionDeficiency && options2.visionDeficiency !== "none") {
+    try {
+      const session = await page.context().newCDPSession(page);
+      await session.send("Emulation.setEmulatedVisionDeficiency", { type: options2.visionDeficiency });
+    } catch (err) {
+      console.warn("Vision deficiency emulation not available in this browser context:", err);
+    }
+  }
+}
+function generateSummaryTable(status, summary, violations, target, incomplete) {
+  const statusDisplay = status === "PASS" ? "PASS (Compliant)" : "FAIL (Violations Found)";
+  const { byImpact, violations: totalViolations, passes, incomplete: totalIncomplete } = summary;
+  const headerTable = [
+    `| Target | Status | Critical | Serious | Moderate | Minor | Total Violations | Incomplete (Review) | Passed Rules |`,
+    `| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |`,
+    `| ${target} | **${statusDisplay}** | ${byImpact.critical} | ${byImpact.serious} | ${byImpact.moderate} | ${byImpact.minor} | ${totalViolations} | ${totalIncomplete} | ${passes} |`
   ].join("\n");
-  return `${headerTable}
+  let fullTable = headerTable;
+  if (totalViolations > 0) {
+    const rows = violations.map((v) => {
+      const targets = v.elements.map((e) => `\`${e.target}\``).slice(0, 3).join(", ") || "-";
+      const cleanHelp = v.help.replace(/\|/g, "-");
+      return `| \`${v.id}\` | **${v.impact.toUpperCase()}** | ${v.elementCount} | ${targets} | ${cleanHelp} |`;
+    });
+    const breakdownTable = [
+      `### Violations Breakdown`,
+      `| Rule ID | Severity | Elements | Target Selectors | Description |`,
+      `| :--- | :---: | :---: | :--- | :--- |`,
+      ...rows
+    ].join("\n");
+    fullTable += `
 
 ${breakdownTable}`;
+  }
+  if (incomplete && incomplete.length > 0) {
+    const incRows = incomplete.map((v) => {
+      const targets = v.elements.map((e) => `\`${e.target}\``).slice(0, 3).join(", ") || "-";
+      const cleanHelp = v.help.replace(/\|/g, "-");
+      return `| \`${v.id}\` | ${v.elementCount} | ${targets} | ${cleanHelp} |`;
+    });
+    const incTable = [
+      `### Incomplete / Needs Visual Review`,
+      `| Rule ID | Elements | Target Selectors | Description |`,
+      `| :--- | :---: | :--- | :--- |`,
+      ...incRows
+    ].join("\n");
+    fullTable += `
+
+${incTable}`;
+  }
+  return fullTable;
 }
 function formatViolations(violations, impactFilter, detailed = false) {
   let filtered = violations;
@@ -230870,7 +230967,8 @@ function formatViolations(violations, impactFilter, detailed = false) {
     const elements = v.nodes.slice(0, maxNodes).map((node) => ({
       target: Array.isArray(node.target) ? node.target.join(" ") : String(node.target),
       html: node.html ? node.html.trim() : "",
-      failureSummary: node.failureSummary ? node.failureSummary.trim() : void 0
+      failureSummary: node.failureSummary ? node.failureSummary.trim() : void 0,
+      rect: node.rect ?? void 0
     }));
     return {
       id: v.id,
@@ -230908,25 +231006,52 @@ function configureAxeBuilder(builder, options2) {
 async function auditUrl(url, options2) {
   const preparedCookies = options2?.cookies?.map((c) => {
     if (!c.domain && !c.url) {
-      return { ...c, url };
+      if (url.startsWith("http://") || url.startsWith("https://")) {
+        return { ...c, url };
+      }
+      return { ...c, domain: "localhost", path: c.path ?? "/" };
     }
     return c;
   });
-  const { context, page } = await createAuditPage({
-    viewport: options2?.viewport,
-    headers: options2?.headers,
-    cookies: preparedCookies,
-    storageState: options2?.storageState
-  });
+  let cdpBrowser = null;
+  let context;
+  let page;
+  let isCdp = false;
+  if (options2?.cdpUrl) {
+    const cdpConn = await connectCDPPage(options2.cdpUrl, url !== "current" ? url : void 0);
+    cdpBrowser = cdpConn.browser;
+    context = cdpConn.context;
+    page = cdpConn.page;
+    isCdp = true;
+  } else {
+    const fresh = await createAuditPage({
+      viewport: options2?.viewport,
+      headers: options2?.headers,
+      cookies: preparedCookies,
+      storageState: options2?.storageState
+    });
+    context = fresh.context;
+    page = fresh.page;
+  }
   try {
-    await page.goto(url, { waitUntil: "load", timeout: 3e4 });
+    if (!isCdp) {
+      await page.goto(url, { waitUntil: "load", timeout: 3e4 });
+    } else if (url && url !== "current" && !page.url().includes(url)) {
+      await page.goto(url, { waitUntil: "load", timeout: 3e4 });
+    }
+    await applyEmulation(page, options2);
     if (options2?.waitForSelector) {
       await page.waitForSelector(options2.waitForSelector, { timeout: 1e4 });
     }
     const builder = new AxeBuilder({ page });
     configureAxeBuilder(builder, options2);
     const results = await builder.analyze();
+    await attachBoundingBoxes(page, results.violations);
+    if (options2?.includeIncomplete && results.incomplete?.length) {
+      await attachBoundingBoxes(page, results.incomplete);
+    }
     const formattedViolations = formatViolations(results.violations, options2?.impact, options2?.detailed);
+    const formattedIncomplete = options2?.includeIncomplete ? formatViolations(results.incomplete, options2?.impact, options2?.detailed) : void 0;
     const byImpact = {
       critical: results.violations.filter((v) => v.impact === "critical").length,
       serious: results.violations.filter((v) => v.impact === "serious").length,
@@ -230937,24 +231062,31 @@ async function auditUrl(url, options2) {
     const status = formattedViolations.length === 0 ? "PASS" : "FAIL";
     const summary = {
       violations: results.violations.length,
-      passes: results.passes.length,
       incomplete: results.incomplete.length,
+      passes: results.passes.length,
       inapplicable: results.inapplicable.length,
       byImpact
     };
-    const summaryTable = generateSummaryTable(status, summary, formattedViolations, url);
+    const displayTarget = isCdp && url === "current" ? `Active tab (${page.url()})` : url;
+    const summaryTable = generateSummaryTable(status, summary, formattedViolations, displayTarget, formattedIncomplete);
     return {
-      target: url,
+      target: displayTarget,
       timestamp: results.timestamp,
       wcagTagsAudited: auditedTags,
       status,
       summary,
       summaryTable,
-      violations: formattedViolations
+      violations: formattedViolations,
+      incomplete: formattedIncomplete
     };
   } finally {
-    await context.close().catch(() => {
-    });
+    if (isCdp) {
+      await cdpBrowser?.close().catch(() => {
+      });
+    } else {
+      await context.close().catch(() => {
+      });
+    }
   }
 }
 async function auditHtml(html, options2) {
@@ -230975,10 +231107,16 @@ async function auditHtml(html, options2) {
 </html>`;
     }
     await page.setContent(completeHtml, { waitUntil: "domcontentloaded", timeout: 15e3 });
+    await applyEmulation(page, options2);
     const builder = new AxeBuilder({ page });
     configureAxeBuilder(builder, options2);
     const results = await builder.analyze();
+    await attachBoundingBoxes(page, results.violations);
+    if (options2?.includeIncomplete && results.incomplete?.length) {
+      await attachBoundingBoxes(page, results.incomplete);
+    }
     const formattedViolations = formatViolations(results.violations, options2?.impact, options2?.detailed);
+    const formattedIncomplete = options2?.includeIncomplete ? formatViolations(results.incomplete, options2?.impact, options2?.detailed) : void 0;
     const byImpact = {
       critical: results.violations.filter((v) => v.impact === "critical").length,
       serious: results.violations.filter((v) => v.impact === "serious").length,
@@ -230989,12 +231127,12 @@ async function auditHtml(html, options2) {
     const status = formattedViolations.length === 0 ? "PASS" : "FAIL";
     const summary = {
       violations: results.violations.length,
-      passes: results.passes.length,
       incomplete: results.incomplete.length,
+      passes: results.passes.length,
       inapplicable: results.inapplicable.length,
       byImpact
     };
-    const summaryTable = generateSummaryTable(status, summary, formattedViolations, "HTML snippet");
+    const summaryTable = generateSummaryTable(status, summary, formattedViolations, "HTML snippet", formattedIncomplete);
     return {
       target: "HTML snippet",
       timestamp: results.timestamp,
@@ -231002,7 +231140,8 @@ async function auditHtml(html, options2) {
       status,
       summary,
       summaryTable,
-      violations: formattedViolations
+      violations: formattedViolations,
+      incomplete: formattedIncomplete
     };
   } finally {
     await context.close().catch(() => {
@@ -231064,7 +231203,19 @@ server2.tool(
     ),
     storageState: external_exports.string().optional().describe(
       "Path to a Playwright storageState JSON file (or raw JSON string) containing saved cookies and localStorage"
-    )
+    ),
+    cdpUrl: external_exports.string().optional().describe(
+      "Chrome DevTools Protocol endpoint (e.g. 'http://localhost:9222') to attach directly to an already-open browser tab without re-navigating"
+    ),
+    includeIncomplete: external_exports.boolean().optional().describe(
+      "Include axe-core 'incomplete' results (elements needing visual review, e.g. text over background images/gradients)"
+    ),
+    emulateMedia: external_exports.object({
+      reducedMotion: external_exports.enum(["reduce", "no-preference"]).optional().describe("Emulate prefers-reduced-motion"),
+      forcedColors: external_exports.enum(["active", "none"]).optional().describe("Emulate forced-colors (High Contrast Mode)"),
+      colorScheme: external_exports.enum(["dark", "light"]).optional().describe("Emulate prefers-color-scheme")
+    }).optional().describe("Emulate CSS media features (reduced motion, forced colors, dark/light theme)"),
+    visionDeficiency: external_exports.enum(["deuteranopia", "protanopia", "tritanopia", "achromatopsia", "blurredVision", "none"]).optional().describe("Emulate color vision deficiency (e.g. 'deuteranopia', 'protanopia', 'achromatopsia')")
   },
   async ({
     url,
@@ -231079,7 +231230,11 @@ server2.tool(
     detailed,
     headers,
     cookies,
-    storageState: storageState2
+    storageState: storageState2,
+    cdpUrl,
+    includeIncomplete,
+    emulateMedia: emulateMedia2,
+    visionDeficiency
   }) => {
     try {
       const report = await auditUrl(url, {
@@ -231094,7 +231249,11 @@ server2.tool(
         detailed,
         headers,
         cookies,
-        storageState: storageState2
+        storageState: storageState2,
+        cdpUrl,
+        includeIncomplete,
+        emulateMedia: emulateMedia2,
+        visionDeficiency
       });
       return {
         content: [
@@ -231127,16 +231286,26 @@ server2.tool(
     rules: external_exports.array(external_exports.string()).optional().describe("Specific axe-core rule IDs to include/run"),
     disableRules: external_exports.array(external_exports.string()).optional().describe("Axe-core rule IDs to skip"),
     impact: external_exports.array(external_exports.enum(["critical", "serious", "moderate", "minor"])).optional().describe("Filter violations by impact severity levels"),
-    detailed: external_exports.boolean().optional().describe("Whether to return all failing element nodes")
+    detailed: external_exports.boolean().optional().describe("Whether to return all failing element nodes"),
+    includeIncomplete: external_exports.boolean().optional().describe("Include axe-core 'incomplete' results (elements needing visual review)"),
+    emulateMedia: external_exports.object({
+      reducedMotion: external_exports.enum(["reduce", "no-preference"]).optional().describe("Emulate prefers-reduced-motion"),
+      forcedColors: external_exports.enum(["active", "none"]).optional().describe("Emulate forced-colors"),
+      colorScheme: external_exports.enum(["dark", "light"]).optional().describe("Emulate prefers-color-scheme")
+    }).optional().describe("Emulate CSS media features (reduced motion, forced colors, dark/light theme)"),
+    visionDeficiency: external_exports.enum(["deuteranopia", "protanopia", "tritanopia", "achromatopsia", "blurredVision", "none"]).optional().describe("Emulate color vision deficiency (e.g. 'deuteranopia', 'protanopia')")
   },
-  async ({ html, tags, rules, disableRules, impact, detailed }) => {
+  async ({ html, tags, rules, disableRules, impact, detailed, includeIncomplete, emulateMedia: emulateMedia2, visionDeficiency }) => {
     try {
       const report = await auditHtml(html, {
         tags,
         rules,
         disableRules,
         impact,
-        detailed
+        detailed,
+        includeIncomplete,
+        emulateMedia: emulateMedia2,
+        visionDeficiency
       });
       return {
         content: [
@@ -231247,6 +231416,39 @@ Audit Data:
 \`\`\`json
 ${reportJson}
 \`\`\``
+          }
+        }
+      ]
+    };
+  }
+);
+server2.prompt(
+  "accessibility_full_protocol",
+  "Execute the comprehensive multi-stage accessibility audit protocol combining axe-a11y with browser accessibility tree inspection.",
+  {
+    targetUrl: external_exports.string().describe("URL to audit across desktop and mobile viewports"),
+    authOptions: external_exports.string().optional().describe("Optional session cookies, Bearer tokens, or storageState file")
+  },
+  async ({ targetUrl, authOptions }) => {
+    return {
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `Execute the comprehensive Accessibility Audit Protocol for "${targetUrl}" ${authOptions ? `(Authentication: ${authOptions})` : ""}:
+
+1. Run \`audit_url\` with tags ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa", "best-practice"], includeIncomplete: true on:
+   - Desktop viewport: { width: 1280, height: 800 }
+   - Mobile viewport: { width: 375, height: 812 }
+2. If browser DevTools/Playwright MCP is connected:
+   - Inspect the Accessibility Tree snapshot for semantic heading hierarchy, landmark regions, and accessible names.
+   - Test keyboard navigation (Tab/Shift+Tab, Enter, Escape) for visible focus indicators, logical tab flow, and absence of traps.
+3. Test interactive states (modals, drawers, validation errors) and audit their markup with \`audit_html\`.
+4. Output:
+   - Combined Executive Summary Table (Desktop & Mobile status).
+   - Findings mapped to exact WCAG Success Criteria.
+   - Concrete, production-ready code diffs to fix all detected violations.`
           }
         }
       ]

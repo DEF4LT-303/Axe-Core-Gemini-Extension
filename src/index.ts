@@ -88,7 +88,31 @@ server.tool(
       .optional()
       .describe(
         'Path to a Playwright storageState JSON file (or raw JSON string) containing saved cookies and localStorage'
-      )
+      ),
+    cdpUrl: z
+      .string()
+      .optional()
+      .describe(
+        "Chrome DevTools Protocol endpoint (e.g. 'http://localhost:9222') to attach directly to an already-open browser tab without re-navigating"
+      ),
+    includeIncomplete: z
+      .boolean()
+      .optional()
+      .describe(
+        "Include axe-core 'incomplete' results (elements needing visual review, e.g. text over background images/gradients)"
+      ),
+    emulateMedia: z
+      .object({
+        reducedMotion: z.enum(['reduce', 'no-preference']).optional().describe('Emulate prefers-reduced-motion'),
+        forcedColors: z.enum(['active', 'none']).optional().describe('Emulate forced-colors (High Contrast Mode)'),
+        colorScheme: z.enum(['dark', 'light']).optional().describe('Emulate prefers-color-scheme')
+      })
+      .optional()
+      .describe('Emulate CSS media features (reduced motion, forced colors, dark/light theme)'),
+    visionDeficiency: z
+      .enum(['deuteranopia', 'protanopia', 'tritanopia', 'achromatopsia', 'blurredVision', 'none'])
+      .optional()
+      .describe("Emulate color vision deficiency (e.g. 'deuteranopia', 'protanopia', 'achromatopsia')")
   },
   async ({
     url,
@@ -103,7 +127,11 @@ server.tool(
     detailed,
     headers,
     cookies,
-    storageState
+    storageState,
+    cdpUrl,
+    includeIncomplete,
+    emulateMedia,
+    visionDeficiency
   }) => {
     try {
       const report = await auditUrl(url, {
@@ -118,7 +146,11 @@ server.tool(
         detailed,
         headers,
         cookies,
-        storageState
+        storageState,
+        cdpUrl,
+        includeIncomplete,
+        emulateMedia,
+        visionDeficiency
       });
 
       return {
@@ -169,16 +201,35 @@ server.tool(
     detailed: z
       .boolean()
       .optional()
-      .describe('Whether to return all failing element nodes')
+      .describe('Whether to return all failing element nodes'),
+    includeIncomplete: z
+      .boolean()
+      .optional()
+      .describe("Include axe-core 'incomplete' results (elements needing visual review)"),
+    emulateMedia: z
+      .object({
+        reducedMotion: z.enum(['reduce', 'no-preference']).optional().describe('Emulate prefers-reduced-motion'),
+        forcedColors: z.enum(['active', 'none']).optional().describe('Emulate forced-colors'),
+        colorScheme: z.enum(['dark', 'light']).optional().describe('Emulate prefers-color-scheme')
+      })
+      .optional()
+      .describe('Emulate CSS media features (reduced motion, forced colors, dark/light theme)'),
+    visionDeficiency: z
+      .enum(['deuteranopia', 'protanopia', 'tritanopia', 'achromatopsia', 'blurredVision', 'none'])
+      .optional()
+      .describe("Emulate color vision deficiency (e.g. 'deuteranopia', 'protanopia')")
   },
-  async ({ html, tags, rules, disableRules, impact, detailed }) => {
+  async ({ html, tags, rules, disableRules, impact, detailed, includeIncomplete, emulateMedia, visionDeficiency }) => {
     try {
       const report = await auditHtml(html, {
         tags,
         rules,
         disableRules,
         impact,
-        detailed
+        detailed,
+        includeIncomplete,
+        emulateMedia,
+        visionDeficiency
       });
 
       return {
@@ -303,6 +354,41 @@ Audit Data:
 \`\`\`json
 ${reportJson}
 \`\`\``
+          }
+        }
+      ]
+    };
+  }
+);
+
+// Prompt: accessibility_full_protocol
+server.prompt(
+  'accessibility_full_protocol',
+  'Execute the comprehensive multi-stage accessibility audit protocol combining axe-a11y with browser accessibility tree inspection.',
+  {
+    targetUrl: z.string().describe('URL to audit across desktop and mobile viewports'),
+    authOptions: z.string().optional().describe('Optional session cookies, Bearer tokens, or storageState file')
+  },
+  async ({ targetUrl, authOptions }) => {
+    return {
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Execute the comprehensive Accessibility Audit Protocol for "${targetUrl}" ${authOptions ? `(Authentication: ${authOptions})` : ''}:
+
+1. Run \`audit_url\` with tags ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa", "best-practice"], includeIncomplete: true on:
+   - Desktop viewport: { width: 1280, height: 800 }
+   - Mobile viewport: { width: 375, height: 812 }
+2. If browser DevTools/Playwright MCP is connected:
+   - Inspect the Accessibility Tree snapshot for semantic heading hierarchy, landmark regions, and accessible names.
+   - Test keyboard navigation (Tab/Shift+Tab, Enter, Escape) for visible focus indicators, logical tab flow, and absence of traps.
+3. Test interactive states (modals, drawers, validation errors) and audit their markup with \`audit_html\`.
+4. Output:
+   - Combined Executive Summary Table (Desktop & Mobile status).
+   - Findings mapped to exact WCAG Success Criteria.
+   - Concrete, production-ready code diffs to fix all detected violations.`
           }
         }
       ]

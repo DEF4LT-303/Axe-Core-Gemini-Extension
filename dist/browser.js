@@ -59,18 +59,62 @@ export async function getBrowser(options) {
 }
 /**
  * Creates a fresh, isolated BrowserContext and Page for an audit.
+ * Supports authentication via extraHTTPHeaders, cookies, and storageState.
  */
-export async function createAuditPage(viewport) {
+export async function createAuditPage(options) {
     const browser = await getBrowser();
-    const context = await browser.newContext({
-        viewport: viewport ?? { width: 1280, height: 800 },
+    const contextOptions = {
+        viewport: options?.viewport ?? { width: 1280, height: 800 },
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 AxeCoreMCP/1.0',
         deviceScaleFactor: 1
-    });
+    };
+    if (options?.headers && Object.keys(options.headers).length > 0) {
+        contextOptions.extraHTTPHeaders = options.headers;
+    }
+    if (options?.storageState) {
+        const trimmed = options.storageState.trim();
+        if (trimmed.startsWith('{')) {
+            try {
+                contextOptions.storageState = JSON.parse(trimmed);
+            }
+            catch {
+                contextOptions.storageState = options.storageState;
+            }
+        }
+        else {
+            contextOptions.storageState = options.storageState;
+        }
+    }
+    const context = await browser.newContext(contextOptions);
+    if (options?.cookies && options.cookies.length > 0) {
+        await context.addCookies(options.cookies);
+    }
     const page = await context.newPage();
     page.setDefaultTimeout(30000);
     page.setDefaultNavigationTimeout(30000);
     return { context, page };
+}
+/**
+ * Connects to an existing Chromium/Chrome/Edge instance via Chrome DevTools Protocol (CDP).
+ * Enables auditing live open tabs, active modals, and authenticated sessions without re-navigating.
+ */
+export async function connectCDPPage(cdpUrl, targetUrl) {
+    const browser = await chromium.connectOverCDP(cdpUrl);
+    const contexts = browser.contexts();
+    const context = contexts[0] ?? (await browser.newContext());
+    const pages = context.pages();
+    let targetPage = null;
+    if (targetUrl && targetUrl !== 'current') {
+        targetPage = pages.find((p) => p.url().includes(targetUrl)) ?? null;
+    }
+    // If not found by specific URL, use the latest/active tab
+    if (!targetPage && pages.length > 0) {
+        targetPage = pages[pages.length - 1];
+    }
+    if (!targetPage) {
+        targetPage = await context.newPage();
+    }
+    return { browser, context, page: targetPage };
 }
 /**
  * Closes the cached browser instance if open.

@@ -1,4 +1,33 @@
 import { type RuleMetadata } from 'axe-core';
+import { type CookieParam } from './browser.js';
+export interface Rect {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+export interface NodeSummary {
+    target: string;
+    html: string;
+    failureSummary?: string;
+    rect?: Rect;
+}
+export interface ViolationSummary {
+    id: string;
+    impact: string;
+    description: string;
+    help: string;
+    helpUrl: string;
+    tags: string[];
+    elementCount: number;
+    elements: NodeSummary[];
+}
+export interface EmulateMediaOptions {
+    reducedMotion?: 'reduce' | 'no-preference';
+    forcedColors?: 'active' | 'none';
+    colorScheme?: 'dark' | 'light';
+}
+export type VisionDeficiency = 'deuteranopia' | 'protanopia' | 'tritanopia' | 'achromatopsia' | 'blurredVision' | 'none';
 export interface AuditOptions {
     tags?: string[];
     rules?: string[];
@@ -12,21 +41,13 @@ export interface AuditOptions {
     };
     waitForSelector?: string;
     detailed?: boolean;
-}
-export interface NodeSummary {
-    target: string;
-    html: string;
-    failureSummary?: string;
-}
-export interface ViolationSummary {
-    id: string;
-    impact: string;
-    description: string;
-    help: string;
-    helpUrl: string;
-    tags: string[];
-    elementCount: number;
-    elements: NodeSummary[];
+    headers?: Record<string, string>;
+    cookies?: CookieParam[];
+    storageState?: string;
+    cdpUrl?: string;
+    includeIncomplete?: boolean;
+    emulateMedia?: EmulateMediaOptions;
+    visionDeficiency?: VisionDeficiency;
 }
 export interface AuditReport {
     target: string;
@@ -35,8 +56,8 @@ export interface AuditReport {
     status: 'PASS' | 'FAIL';
     summary: {
         violations: number;
-        passes: number;
         incomplete: number;
+        passes: number;
         inapplicable: number;
         byImpact: {
             critical: number;
@@ -45,10 +66,16 @@ export interface AuditReport {
             minor: number;
         };
     };
+    summaryTable: string;
     violations: ViolationSummary[];
+    incomplete?: ViolationSummary[];
 }
 /**
- * Audits a live URL using Playwright and @axe-core/playwright.
+ * Generates a clean Markdown table summarizing the audit results.
+ */
+export declare function generateSummaryTable(status: 'PASS' | 'FAIL', summary: AuditReport['summary'], violations: ViolationSummary[], target: string, incomplete?: ViolationSummary[]): string;
+/**
+ * Audits a live URL or active Chrome DevTools tab using Playwright and @axe-core/playwright.
  */
 export declare function auditUrl(url: string, options?: AuditOptions): Promise<AuditReport>;
 /**

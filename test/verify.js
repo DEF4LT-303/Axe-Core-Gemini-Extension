@@ -25,9 +25,23 @@ async function test() {
     console.log(`- [${v.impact.toUpperCase()}] ${v.id}: ${v.help} (${v.elementCount} elements)`);
     for (const el of v.elements) {
       console.log(`    Target: ${el.target}`);
+      console.log(`    Rect: ${JSON.stringify(el.rect)}`);
       console.log(`    Fix hint: ${el.failureSummary}`);
     }
   }
+
+  await closeBrowser();
+
+  console.log('\n--- Testing auditHtml with emulateMedia (reduced motion, forced colors) ---');
+  const mediaReport = await auditHtml(
+    '<button style="color: #999; background: #aaa;">Btn</button>',
+    {
+      emulateMedia: { reducedMotion: 'reduce', forcedColors: 'active' },
+      includeIncomplete: true
+    }
+  );
+  console.log(`Media Audit Status: ${mediaReport.status}`);
+  console.log(`Has incomplete array: ${Array.isArray(mediaReport.incomplete)}`);
 
   await closeBrowser();
 

@@ -1,0 +1,35 @@
+description = "Run the comprehensive multi-MCP accessibility audit protocol (axe-a11y + DevTools/Playwright a11y tree + keyboard navigation + responsive viewports)"
+
+prompt = """
+You are a principal accessibility engineer executing the comprehensive Accessibility Audit Protocol for: {{args}}.
+
+Execute the following multi-stage protocol:
+
+### Stage 1: Dual-Viewport Axe Engine Audit
+1. Parse target URL and any authentication options (cookies, headers, storageState, or cdpUrl) from: {{args}}.
+2. Call `audit_url` with desktop viewport ({ width: 1280, height: 800 }) and tags ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa", "best-practice"] with `includeIncomplete: true`.
+3. Call `audit_url` with mobile viewport ({ width: 375, height: 812 }) to catch responsive reflow, mobile contrast, and touch target issues.
+
+### Stage 2: Accessibility Tree & Landmark Inspection
+- If Playwright, Chrome DevTools, or Firefox DevTools MCP is available in the session:
+  - Capture the Accessibility Tree snapshot of the page (`browser_snapshot` or equivalent).
+  - Verify semantic heading hierarchy (single h1, no skipped levels).
+  - Check ARIA landmark structure (main, nav, banner, contentinfo, complementary).
+  - Verify meaningful accessible names for all icon buttons, links, and form inputs.
+
+### Stage 3: Keyboard Navigation & Focus Order
+- If browser interaction tools are available:
+  - Simulate keyboard navigation (Tab, Shift+Tab, Enter, Space, Escape) across interactive widgets (menus, modals, form controls).
+  - Verify focus visibility (clear, high-contrast focus rings).
+  - Check for logical focus order and absence of keyboard traps.
+  - Verify modal focus containment and Escape key dismissal.
+
+### Stage 4: Interactive UI States (Modals, Drawers, Errors)
+- For any dynamic UI states (open modals, navigation drawers, form validation error states), trigger them and audit the resulting DOM state or markup using `audit_html`.
+
+### Output Format:
+1. Executive Summary Table: Combined table displaying Desktop and Mobile audit scores and violation counts.
+2. WCAG Criteria Mapping: Group all findings by exact WCAG Success Criterion (e.g. 1.4.3 Contrast, 2.1.1 Keyboard, 2.4.7 Focus Visible, 4.1.2 Name/Role/Value).
+3. Keyboard & Screen Reader Findings: Document focus indicators, tab order flow, and landmark anomalies.
+4. Remediation Plan & Code Diffs: Provide clean, production-ready code diffs to resolve all detected issues.
+"""

@@ -41,14 +41,45 @@ Gemini CLI automatically enables these dedicated slash commands when the extensi
 | :--- | :--- | :--- |
 | **`/a11y`** | `/a11y <url or html>` | Fast accessibility check on any URL, local file, or HTML snippet |
 | **`/a11y:audit`** | `/a11y:audit <url>` | Full WCAG 2.1 AA audit on a live URL with prioritized fixes |
+| **`/a11y:full`** | `/a11y:full <url>` | Multi-MCP protocol: dual viewports + a11y tree + keyboard navigation |
 | **`/a11y:rule`** | `/a11y:rule <rule-id>` | Look up an axe-core rule with before/after code examples |
 
 **Examples:**
 ```text
+# Quick check
 /a11y http://localhost:3000
 /a11y <button style="color: #999; background: #aaa;">Click</button>
+
+# Full audit on public or local site
 /a11y:audit https://example.com
+
+# Comprehensive Multi-MCP audit (Axe + Playwright/DevTools)
+/a11y:full http://localhost:3000
+
+# Authenticated audit using session cookies
+/a11y:audit http://localhost:3000/dashboard with cookie session_id=xyz123
+
+# Direct CDP attachment to an open Chrome/Edge tab
+/a11y:audit current with cdpUrl http://localhost:9222
+
+# Rule documentation and code remediation
 /a11y:rule color-contrast
+```
+
+---
+
+## Accessibility Audit Protocol (`GEMINI.md`)
+
+You can save this protocol into your workspace's `./GEMINI.md` or global `~/.gemini/GEMINI.md` so Gemini CLI automatically orchestrates `axe-a11y` together with browser automation tools whenever you ask for an audit:
+
+```markdown
+## Accessibility Audit Protocol
+When asked to audit a page or flow for maximum accessibility coverage:
+1. Run `axe-a11y` `audit_url` with `tags: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa", "best-practice"]` on both desktop (`1280x800`) and mobile (`375x812`) viewports with `includeIncomplete: true`.
+2. Use Playwright or Chrome DevTools MCP to capture the Accessibility Tree snapshot (`browser_snapshot`) and audit semantic hierarchy, landmark usage, and link/button names.
+3. Simulate keyboard navigation (`Tab`, `Enter`, `Escape`) on interactive widgets (modals, menus, forms) via Playwright/DevTools MCP to verify focus order, focus visibility, and absence of keyboard traps.
+4. Open each interactive UI state (modals, error states, drawers), extract the rendered HTML or route, and run `axe-a11y` against those states as well.
+5. Group findings by WCAG Success Criterion and severity, providing exact code diffs.
 ```
 
 ---
@@ -74,11 +105,19 @@ Audits a live web page or local development server using axe-core in a headless 
 - `headers` *(object, optional)*: Custom HTTP headers for authenticated endpoints (e.g., `{"Authorization": "Bearer <token>"}`).
 - `cookies` *(array, optional)*: Cookies for session-based auth (e.g., `[{"name": "session_id", "value": "xyz123"}]`).
 - `storageState` *(string, optional)*: Path to a Playwright `storageState.json` file (or JSON string) for logged-in sessions.
+- `cdpUrl` *(string, optional)*: Attach directly to an already-open Chrome/Edge tab via CDP (e.g. `http://localhost:9222`) without re-navigating. Pass `url: "current"` to audit the active tab.
+- `includeIncomplete` *(boolean, optional)*: Include axe-core "incomplete" items (needs visual review, e.g. text over background gradients/images).
+- `emulateMedia` *(object, optional)*: `{ reducedMotion: 'reduce' | 'no-preference', forcedColors: 'active' | 'none', colorScheme: 'dark' | 'light' }` to test High Contrast Mode and reduced motion.
+- `visionDeficiency` *(string, optional)*: Emulate color blindness (`deuteranopia`, `protanopia`, `tritanopia`, `achromatopsia`, `blurredVision`, `none`).
+
+*(All failing nodes automatically include bounding boxes `{ rect: { x, y, width, height } }` for visual screenshot cropping).*
 
 **Example Prompts:**
 > *"Run an accessibility audit on http://localhost:5173 for WCAG 2.1 AA and list critical violations."*
 >
 > *"Audit http://localhost:3000/dashboard with cookie `session_id=xyz123`."*
+>
+> *"Audit the active Chrome tab using CDP at http://localhost:9222 with reduced motion enabled."*
 
 ---
 
