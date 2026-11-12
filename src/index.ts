@@ -10,7 +10,7 @@ declare const __SERVER_VERSION__: string;
 const version = typeof __SERVER_VERSION__ !== 'undefined' ? __SERVER_VERSION__ : '1.0.0';
 
 const server = new McpServer({
-  name: 'axe-core',
+  name: 'axe-a11y',
   version
 });
 

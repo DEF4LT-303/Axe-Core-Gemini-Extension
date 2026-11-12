@@ -1,11 +1,12 @@
 {
-  "name": "axe-core-mcp",
+  "name": "axe-a11y-mcp",
   "version": "1.2.0",
-  "description": "Axe-Core Accessibility Testing MCP Server for Gemini CLI",
+  "description": "Axe-powered Accessibility Testing MCP Server and Gemini CLI Extension",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "axe-core-mcp": "./dist/index.js"
+    "axe-a11y": "./dist/index.js",
+    "axe-a11y-mcp": "./dist/index.js"
   },
   "files": [
     "dist",

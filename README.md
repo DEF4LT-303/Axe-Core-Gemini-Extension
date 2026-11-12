@@ -1,4 +1,4 @@
-# Axe-Core MCP Extension for Gemini CLI
+# Axe A11y - Accessibility Extension for Gemini CLI
 
 A Model Context Protocol (MCP) server that brings **[axe-core](https://github.com/dequelabs/axe-core)**—the industry standard accessibility testing engine—directly into **Gemini CLI**.
 
@@ -19,7 +19,7 @@ gemini extensions install https://github.com/DEF4LT-303/Axe-Core-Gemini-Extensio
 Pull the latest version at any time:
 
 ```bash
-gemini extensions update axe-core
+gemini extensions update axe-a11y
 ```
 
 ---
@@ -114,15 +114,11 @@ Lists available axe-core rules, optionally filtered by tag or category.
 **Example Prompt:**
 > *"List all WCAG 2.1 AA rules available in axe-core."*
 
----
-
-## Example Interaction
-
 ```text
 User: Run an accessibility audit on http://localhost:3000
 
 Gemini CLI:
-Calling tool: mcp_axe-core_audit_url({ url: "http://localhost:3000" })
+Calling tool: mcp_axe-a11y_audit_url({ url: "http://localhost:3000" })
 
 Result:
 Status: FAIL (3 violations found)
@@ -154,3 +150,13 @@ gemini extensions link .
 ```
 
 ---
+
+## Disclaimer
+
+This project is an independent, open-source community extension and is not affiliated with, endorsed by, or sponsored by Deque Systems.
+
+---
+
+## License
+
+MIT

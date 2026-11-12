@@ -231024,7 +231024,7 @@ function listRules(tag) {
 // src/index.ts
 var version4 = true ? "1.2.0" : "1.0.0";
 var server2 = new McpServer({
-  name: "axe-core",
+  name: "axe-a11y",
   version: version4
 });
 server2.tool(
