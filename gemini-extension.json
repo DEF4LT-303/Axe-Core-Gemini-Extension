@@ -1,6 +1,6 @@
 {
   "name": "axe-a11y",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Axe-powered WCAG accessibility testing extension and MCP server for Gemini CLI",
   "mcpServers": {
     "axe-a11y": {
