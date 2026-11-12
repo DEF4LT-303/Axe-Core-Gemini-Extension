@@ -231161,7 +231161,7 @@ function listRules(tag) {
 }
 
 // src/index.ts
-var version4 = true ? "1.2.1" : "1.0.0";
+var version4 = true ? "1.3.0" : "1.0.0";
 var server2 = new McpServer({
   name: "axe-a11y",
   version: version4
